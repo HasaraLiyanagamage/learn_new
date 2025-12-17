@@ -40,22 +40,36 @@ class NotificationProvider with ChangeNotifier {
 
   // Fetch notifications with stream
   void fetchNotificationsStream(String userId) {
+    print('[Notification] Fetching notifications stream for user: $userId');
     _isLoading = true;
+    _error = null;
     notifyListeners();
 
     FirestoreService.getNotificationsByUserStream(userId).listen(
       (snapshot) {
+        print('[Notification] Received ${snapshot.docs.length} notifications');
         _notifications = snapshot.docs
-            .map((doc) => NotificationModel.fromJson({
-                  ...doc.data() as Map<String, dynamic>,
+            .map((doc) {
+              try {
+                final data = doc.data() as Map<String, dynamic>;
+                print('   - ${data['title']} (${data['type']})');
+                return NotificationModel.fromJson({
+                  ...data,
                   'id': doc.id,
-                }))
+                });
+              } catch (e) {
+                print('[Notification] Error parsing notification ${doc.id}: $e');
+                rethrow;
+              }
+            })
             .toList();
         _calculateUnreadCount();
         _isLoading = false;
+        print('[Notification] Notifications loaded. Unread: $_unreadCount');
         notifyListeners();
       },
       onError: (error) {
+        print('[Notification] Error fetching notifications: $error');
         _error = error.toString();
         _isLoading = false;
         notifyListeners();

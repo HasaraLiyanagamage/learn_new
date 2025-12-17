@@ -2,9 +2,12 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/student_provider.dart';
+import '../../providers/progress_provider.dart';
 import '../../core/services/firestore_service.dart';
+import '../../core/services/notification_helper.dart';
 import '../../core/models/course_model.dart';
 import '../../core/models/lesson_model.dart';
+import '../quiz/quiz_screen.dart';
 
 class CourseDetailScreen extends StatefulWidget {
   final String courseId;
@@ -18,9 +21,13 @@ class CourseDetailScreen extends StatefulWidget {
 class _CourseDetailScreenState extends State<CourseDetailScreen> {
   bool _isEnrolled = false;
   bool _isLoading = true;
+  bool _isFavorite = false;
+  bool _isCourseCompleted = false;
   CourseModel? _course;
   List<String> _completedLessons = [];
   List<String> _completedQuizzes = [];
+  int _totalLessons = 0;
+  int _totalQuizzes = 0;
 
   @override
   void initState() {
@@ -58,7 +65,19 @@ class _CourseDetailScreenState extends State<CourseDetailScreen> {
           final progressData = progressSnapshot.docs.first.data() as Map<String, dynamic>;
           _completedLessons = List<String>.from(progressData['completedLessons'] ?? []);
           _completedQuizzes = List<String>.from(progressData['completedQuizzes'] ?? []);
+          _totalLessons = progressData['totalLessons'] ?? 0;
+          _totalQuizzes = progressData['totalQuizzes'] ?? 0;
+          _isCourseCompleted = progressData['isCompleted'] ?? false;
         }
+
+        // Check if course is favorited
+        final favoritesSnapshot = await FirestoreService.getCollection(
+          'favorites',
+          queryBuilder: (query) => query
+              .where('userId', isEqualTo: userId)
+              .where('courseId', isEqualTo: widget.courseId),
+        );
+        _isFavorite = favoritesSnapshot.docs.isNotEmpty;
       }
     } catch (e) {
       debugPrint('Error loading course: $e');
@@ -96,6 +115,13 @@ class _CourseDetailScreenState extends State<CourseDetailScreen> {
       });
 
       setState(() => _isEnrolled = true);
+
+      // Send enrollment notification
+      await NotificationHelper.sendEnrollmentNotification(
+        userId: userId,
+        courseId: widget.courseId,
+        courseTitle: _course?.title ?? 'Course',
+      );
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -180,6 +206,24 @@ class _CourseDetailScreenState extends State<CourseDetailScreen> {
     }
   }
 
+  Future<void> _navigateToQuiz(String quizId) async {
+    final result = await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => QuizScreen(
+          quizId: quizId,
+          courseId: widget.courseId,
+          onQuizComplete: _markQuizComplete,
+        ),
+      ),
+    );
+
+    // Reload course data after quiz completion
+    if (result == true) {
+      _loadCourseData();
+    }
+  }
+
   Future<void> _markQuizComplete(String quizId, double score) async {
     final authProvider = context.read<AuthProvider>();
     final userId = authProvider.currentUser?.id;
@@ -250,6 +294,168 @@ class _CourseDetailScreenState extends State<CourseDetailScreen> {
     }
   }
 
+  Future<void> _toggleFavorite() async {
+    final authProvider = context.read<AuthProvider>();
+    final userId = authProvider.currentUser?.id;
+
+    if (userId == null) return;
+
+    try {
+      if (_isFavorite) {
+        // Remove from favorites
+        final favoritesSnapshot = await FirestoreService.getCollection(
+          'favorites',
+          queryBuilder: (query) => query
+              .where('userId', isEqualTo: userId)
+              .where('courseId', isEqualTo: widget.courseId),
+        );
+
+        if (favoritesSnapshot.docs.isNotEmpty) {
+          await FirestoreService.deleteDocument('favorites', favoritesSnapshot.docs.first.id);
+        }
+
+        setState(() => _isFavorite = false);
+
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Removed from favorites'),
+              duration: Duration(seconds: 2),
+            ),
+          );
+        }
+      } else {
+        // Add to favorites
+        await FirestoreService.createDocument('favorites', '${userId}_${widget.courseId}', {
+          'userId': userId,
+          'courseId': widget.courseId,
+          'addedAt': DateTime.now(),
+        });
+
+        setState(() => _isFavorite = true);
+
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Added to favorites'),
+              backgroundColor: Colors.green,
+              duration: Duration(seconds: 2),
+            ),
+          );
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error: $e')),
+        );
+      }
+    }
+  }
+
+  Future<void> _markCourseComplete() async {
+    final authProvider = context.read<AuthProvider>();
+    final userId = authProvider.currentUser?.id;
+
+    if (userId == null) return;
+
+    // Check if all lessons and quizzes are completed
+    if (_completedLessons.length < _totalLessons || _completedQuizzes.length < _totalQuizzes) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Please complete all lessons and quizzes first'),
+          backgroundColor: Colors.orange,
+        ),
+      );
+      return;
+    }
+
+    try {
+      final progressId = '${userId}_${widget.courseId}';
+      await FirestoreService.updateDocument('progress', progressId, {
+        'isCompleted': true,
+        'completedAt': DateTime.now(),
+        'progressPercentage': 100.0,
+      });
+
+      setState(() => _isCourseCompleted = true);
+
+      // Send completion notification
+      await NotificationHelper.sendCompletionNotification(
+        userId: userId,
+        courseId: widget.courseId,
+        courseTitle: _course!.title,
+      );
+
+      if (mounted) {
+        showDialog(
+          context: context,
+          builder: (context) => AlertDialog(
+            title: const Row(
+              children: [
+                Icon(Icons.celebration, color: Colors.amber, size: 32),
+                SizedBox(width: 12),
+                Text('Congratulations!'),
+              ],
+            ),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'You have successfully completed the course:',
+                  style: Theme.of(context).textTheme.bodyMedium,
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  _course!.title,
+                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.bold,
+                        color: Theme.of(context).primaryColor,
+                      ),
+                ),
+                const SizedBox(height: 16),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: const [
+                    Icon(Icons.celebration, color: Colors.amber, size: 20),
+                    SizedBox(width: 8),
+                    Text('Keep up the great work!'),
+                  ],
+                ),
+              ],
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(context).pop(),
+                child: const Text('OK'),
+              ),
+            ],
+          ),
+        );
+      }
+
+      // Refresh student statistics and progress
+      context.read<StudentProvider>().fetchStudentStatistics(userId);
+      context.read<ProgressProvider>().fetchUserProgress(userId);
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error: $e')),
+        );
+      }
+    }
+  }
+
+  bool get _canCompleteCourse {
+    return _isEnrolled &&
+        !_isCourseCompleted &&
+        _totalLessons > 0 &&
+        _totalQuizzes > 0 &&
+        _completedLessons.length == _totalLessons &&
+        _completedQuizzes.length == _totalQuizzes;
+  }
+
   @override
   Widget build(BuildContext context) {
     if (_isLoading) {
@@ -269,6 +475,17 @@ class _CourseDetailScreenState extends State<CourseDetailScreen> {
     return Scaffold(
       appBar: AppBar(
         title: Text(_course!.title),
+        actions: [
+          if (_isEnrolled)
+            IconButton(
+              icon: Icon(
+                _isFavorite ? Icons.favorite : Icons.favorite_border,
+                color: _isFavorite ? Colors.red : null,
+              ),
+              onPressed: _toggleFavorite,
+              tooltip: _isFavorite ? 'Remove from favorites' : 'Add to favorites',
+            ),
+        ],
       ),
       body: SingleChildScrollView(
         child: Column(
@@ -361,6 +578,54 @@ class _CourseDetailScreenState extends State<CourseDetailScreen> {
                 ),
               ),
 
+            // Complete Course Button
+            if (_canCompleteCourse)
+              Padding(
+                padding: const EdgeInsets.all(16),
+                child: SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton.icon(
+                    onPressed: _markCourseComplete,
+                    icon: const Icon(Icons.check_circle),
+                    label: const Text('Mark Course as Complete'),
+                    style: ElevatedButton.styleFrom(
+                      padding: const EdgeInsets.all(16),
+                      backgroundColor: Colors.green,
+                      foregroundColor: Colors.white,
+                    ),
+                  ),
+                ),
+              ),
+
+            // Course Completed Badge
+            if (_isCourseCompleted)
+              Padding(
+                padding: const EdgeInsets.all(16),
+                child: Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: Colors.green.withOpacity(0.1),
+                    border: Border.all(color: Colors.green, width: 2),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      const Icon(Icons.verified, color: Colors.green, size: 28),
+                      const SizedBox(width: 12),
+                      Text(
+                        'Course Completed!',
+                        style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                              color: Colors.green,
+                              fontWeight: FontWeight.bold,
+                            ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+
             // Lessons Section
             if (_isEnrolled) ...[
               Padding(
@@ -431,6 +696,57 @@ class _CourseDetailScreenState extends State<CourseDetailScreen> {
                 },
               ),
 
+              const SizedBox(height: 16),
+
+              // Progress Indicator
+              if (_totalLessons > 0 || _totalQuizzes > 0)
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  child: Card(
+                    color: Theme.of(context).colorScheme.primaryContainer.withOpacity(0.3),
+                    child: Padding(
+                      padding: const EdgeInsets.all(16),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              Text(
+                                'Course Progress',
+                                style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                              ),
+                              Text(
+                                '${_completedLessons.length + _completedQuizzes.length}/${_totalLessons + _totalQuizzes}',
+                                style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                                      fontWeight: FontWeight.bold,
+                                      color: Theme.of(context).primaryColor,
+                                    ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 12),
+                          LinearProgressIndicator(
+                            value: (_totalLessons + _totalQuizzes) > 0
+                                ? (_completedLessons.length + _completedQuizzes.length) /
+                                    (_totalLessons + _totalQuizzes)
+                                : 0,
+                            minHeight: 8,
+                            borderRadius: BorderRadius.circular(4),
+                          ),
+                          const SizedBox(height: 8),
+                          Text(
+                            'Lessons: ${_completedLessons.length}/$_totalLessons | Quizzes: ${_completedQuizzes.length}/$_totalQuizzes',
+                            style: Theme.of(context).textTheme.bodySmall,
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+
               const SizedBox(height: 24),
 
               // Quizzes Section
@@ -476,6 +792,9 @@ class _CourseDetailScreenState extends State<CourseDetailScreen> {
                       return Card(
                         margin: const EdgeInsets.only(bottom: 12),
                         child: ListTile(
+                          onTap: isCompleted
+                              ? null
+                              : () => _navigateToQuiz(quizId),
                           leading: CircleAvatar(
                             backgroundColor: isCompleted
                                 ? Colors.green
@@ -490,17 +809,7 @@ class _CourseDetailScreenState extends State<CourseDetailScreen> {
                           ),
                           trailing: isCompleted
                               ? const Icon(Icons.check_circle, color: Colors.green)
-                              : ElevatedButton(
-                                  onPressed: () {
-                                    // Simulate quiz completion with random score
-                                    final score = 70.0 + (index * 5.0);
-                                    _markQuizComplete(quizId, score);
-                                  },
-                                  style: ElevatedButton.styleFrom(
-                                    backgroundColor: Colors.orange,
-                                  ),
-                                  child: const Text('Take Quiz'),
-                                ),
+                              : const Icon(Icons.arrow_forward_ios, size: 16),
                         ),
                       );
                     },

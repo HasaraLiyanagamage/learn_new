@@ -33,8 +33,8 @@ class QuizModel {
               ?.map((q) => QuizQuestion.fromJson(q))
               .toList() ??
           [],
-      duration: json['duration'] ?? 0,
-      passingScore: json['passingScore'] ?? 0,
+      duration: _parseInt(json['duration']) ?? 0,
+      passingScore: _parseInt(json['passingScore']) ?? 0,
       createdAt: json['createdAt'] is Timestamp
           ? (json['createdAt'] as Timestamp).toDate()
           : DateTime.parse(json['createdAt'] ?? DateTime.now().toIso8601String()),
@@ -42,6 +42,14 @@ class QuizModel {
           ? (json['updatedAt'] as Timestamp).toDate()
           : DateTime.parse(json['updatedAt'] ?? DateTime.now().toIso8601String()),
     );
+  }
+
+  static int? _parseInt(dynamic value) {
+    if (value == null) return null;
+    if (value is int) return value;
+    if (value is String) return int.tryParse(value);
+    if (value is double) return value.toInt();
+    return null;
   }
 
   Map<String, dynamic> toJson() {
@@ -79,9 +87,17 @@ class QuizQuestion {
       id: json['id'] ?? '',
       question: json['question'] ?? '',
       options: List<String>.from(json['options'] ?? []),
-      correctAnswer: json['correctAnswer'] ?? 0,
-      points: json['points'] ?? 1,
+      correctAnswer: _parseIntValue(json['correctAnswer']) ?? 0,
+      points: _parseIntValue(json['points']) ?? 1,
     );
+  }
+
+  static int? _parseIntValue(dynamic value) {
+    if (value == null) return null;
+    if (value is int) return value;
+    if (value is String) return int.tryParse(value);
+    if (value is double) return value.toInt();
+    return null;
   }
 
   Map<String, dynamic> toJson() {
@@ -117,18 +133,34 @@ class QuizResultModel {
   });
 
   factory QuizResultModel.fromJson(Map<String, dynamic> json) {
+    // Parse answers map with type conversion
+    final answersMap = <String, int>{};
+    if (json['answers'] != null) {
+      (json['answers'] as Map<String, dynamic>).forEach((key, value) {
+        answersMap[key] = _parseIntSafe(value) ?? 0;
+      });
+    }
+
     return QuizResultModel(
       id: json['id'] ?? '',
       quizId: json['quizId'] ?? '',
       userId: json['userId'] ?? '',
-      answers: Map<String, int>.from(json['answers'] ?? {}),
-      score: json['score'] ?? 0,
-      totalScore: json['totalScore'] ?? 0,
+      answers: answersMap,
+      score: _parseIntSafe(json['score']) ?? 0,
+      totalScore: _parseIntSafe(json['totalScore']) ?? 0,
       passed: json['passed'] ?? false,
       submittedAt: json['submittedAt'] is Timestamp
           ? (json['submittedAt'] as Timestamp).toDate()
           : DateTime.parse(json['submittedAt'] ?? DateTime.now().toIso8601String()),
     );
+  }
+
+  static int? _parseIntSafe(dynamic value) {
+    if (value == null) return null;
+    if (value is int) return value;
+    if (value is String) return int.tryParse(value);
+    if (value is double) return value.toInt();
+    return null;
   }
 
   Map<String, dynamic> toJson() {

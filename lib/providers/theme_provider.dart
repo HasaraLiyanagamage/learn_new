@@ -49,16 +49,18 @@ class ThemeProvider with ChangeNotifier {
       useMaterial3: true,
       brightness: Brightness.light,
       colorScheme: ColorScheme.fromSeed(
-        seedColor: Colors.blue,
+        seedColor: const Color(0xFF8E94F2), // Purple from palette
         brightness: Brightness.light,
       ),
+      scaffoldBackgroundColor: const Color(0xFFF5F5FF), // Light purple-tinted background
       appBarTheme: const AppBarTheme(
         centerTitle: true,
         elevation: 0,
       ),
-      cardTheme: const CardThemeData(
+      cardTheme: CardThemeData(
         elevation: 2,
-        shape: RoundedRectangleBorder(
+        color: Colors.white,
+        shape: const RoundedRectangleBorder(
           borderRadius: BorderRadius.all(Radius.circular(12)),
         ),
       ),
@@ -67,6 +69,7 @@ class ThemeProvider with ChangeNotifier {
           borderRadius: BorderRadius.circular(12),
         ),
         filled: true,
+        fillColor: Colors.white,
       ),
     );
   }
@@ -77,16 +80,18 @@ class ThemeProvider with ChangeNotifier {
       useMaterial3: true,
       brightness: Brightness.dark,
       colorScheme: ColorScheme.fromSeed(
-        seedColor: Colors.blue,
+        seedColor: const Color(0xFF8E94F2), // Purple from palette
         brightness: Brightness.dark,
       ),
+      scaffoldBackgroundColor: const Color(0xFF1A1A2E), // Dark purple-tinted background
       appBarTheme: const AppBarTheme(
         centerTitle: true,
         elevation: 0,
       ),
-      cardTheme: const CardThemeData(
+      cardTheme: CardThemeData(
         elevation: 2,
-        shape: RoundedRectangleBorder(
+        color: const Color(0xFF2D2D44),
+        shape: const RoundedRectangleBorder(
           borderRadius: BorderRadius.all(Radius.circular(12)),
         ),
       ),
@@ -95,6 +100,7 @@ class ThemeProvider with ChangeNotifier {
           borderRadius: BorderRadius.circular(12),
         ),
         filled: true,
+        fillColor: const Color(0xFF2D2D44),
       ),
     );
   }

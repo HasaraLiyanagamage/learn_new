@@ -5,8 +5,15 @@ import '../../providers/auth_provider.dart';
 
 class QuizScreen extends StatefulWidget {
   final String quizId;
+  final String courseId;
+  final Function(String quizId, double score)? onQuizComplete;
 
-  const QuizScreen({super.key, required this.quizId});
+  const QuizScreen({
+    super.key,
+    required this.quizId,
+    required this.courseId,
+    this.onQuizComplete,
+  });
 
   @override
   State<QuizScreen> createState() => _QuizScreenState();
@@ -37,10 +44,49 @@ class _QuizScreenState extends State<QuizScreen> {
       );
     }
 
+    if (quizProvider.error != null) {
+      return Scaffold(
+        appBar: AppBar(title: const Text('Error')),
+        body: Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const Icon(Icons.error_outline, size: 64, color: Colors.red),
+              const SizedBox(height: 16),
+              Text('Error: ${quizProvider.error}'),
+              const SizedBox(height: 16),
+              ElevatedButton(
+                onPressed: () {
+                  context.read<QuizProvider>().fetchQuizById(widget.quizId);
+                },
+                child: const Text('Retry'),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
     if (quiz == null) {
       return Scaffold(
         appBar: AppBar(title: const Text('Quiz Not Found')),
-        body: const Center(child: Text('Quiz not found')),
+        body: Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const Icon(Icons.quiz, size: 64, color: Colors.grey),
+              const SizedBox(height: 16),
+              const Text('Quiz not found'),
+              const SizedBox(height: 8),
+              Text('Quiz ID: ${widget.quizId}', style: const TextStyle(fontSize: 12, color: Colors.grey)),
+              const SizedBox(height: 16),
+              ElevatedButton(
+                onPressed: () => Navigator.of(context).pop(),
+                child: const Text('Go Back'),
+              ),
+            ],
+          ),
+        ),
       );
     }
 
@@ -200,6 +246,11 @@ class _QuizScreenState extends State<QuizScreen> {
         );
 
     if (context.mounted && result != null) {
+      // Mark quiz as complete if passed and callback is provided
+      if (result.passed && widget.onQuizComplete != null) {
+        await widget.onQuizComplete!(quizId, result.percentage);
+      }
+
       showDialog(
         context: context,
         barrierDismissible: false,
@@ -224,7 +275,7 @@ class _QuizScreenState extends State<QuizScreen> {
             TextButton(
               onPressed: () {
                 Navigator.of(context).pop();
-                Navigator.of(context).pop();
+                Navigator.of(context).pop(result.passed);
               },
               child: const Text('OK'),
             ),

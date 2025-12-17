@@ -138,13 +138,13 @@ class _ProgressScreenState extends State<ProgressScreen> {
                                 children: [
                                   _HeaderStatCard(
                                     icon: Icons.school,
-                                    label: 'Courses',
+                                    label: 'Enrolled',
                                     value: '${studentProvider.enrolledCoursesCount}',
                                   ),
                                   _HeaderStatCard(
-                                    icon: Icons.check_circle,
+                                    icon: Icons.verified,
                                     label: 'Completed',
-                                    value: '${studentProvider.completedLessonsCount}',
+                                    value: '${progressList.where((p) => p.isCompleted).length}',
                                   ),
                                   _HeaderStatCard(
                                     icon: Icons.quiz,
@@ -247,14 +247,20 @@ class _ProgressScreenState extends State<ProgressScreen> {
                                           Container(
                                             padding: const EdgeInsets.all(12),
                                             decoration: BoxDecoration(
-                                              color: Theme.of(context)
-                                                  .colorScheme
-                                                  .primaryContainer,
+                                              color: progress.isCompleted
+                                                  ? Colors.green.withOpacity(0.2)
+                                                  : Theme.of(context)
+                                                      .colorScheme
+                                                      .primaryContainer,
                                               borderRadius: BorderRadius.circular(12),
                                             ),
                                             child: Icon(
-                                              Icons.school,
-                                              color: Theme.of(context).colorScheme.primary,
+                                              progress.isCompleted
+                                                  ? Icons.verified
+                                                  : Icons.school,
+                                              color: progress.isCompleted
+                                                  ? Colors.green
+                                                  : Theme.of(context).colorScheme.primary,
                                             ),
                                           ),
                                           const SizedBox(width: 12),
@@ -262,16 +268,54 @@ class _ProgressScreenState extends State<ProgressScreen> {
                                             child: Column(
                                               crossAxisAlignment: CrossAxisAlignment.start,
                                               children: [
-                                                Text(
-                                                  'Course ID: ${progress.courseId.substring(0, 8)}...',
-                                                  style: const TextStyle(
-                                                    fontWeight: FontWeight.bold,
-                                                    fontSize: 16,
-                                                  ),
+                                                Row(
+                                                  children: [
+                                                    Expanded(
+                                                      child: Text(
+                                                        'Course ID: ${progress.courseId.substring(0, 8)}...',
+                                                        style: const TextStyle(
+                                                          fontWeight: FontWeight.bold,
+                                                          fontSize: 16,
+                                                        ),
+                                                      ),
+                                                    ),
+                                                    if (progress.isCompleted)
+                                                      Container(
+                                                        padding: const EdgeInsets.symmetric(
+                                                          horizontal: 8,
+                                                          vertical: 4,
+                                                        ),
+                                                        decoration: BoxDecoration(
+                                                          color: Colors.green,
+                                                          borderRadius: BorderRadius.circular(12),
+                                                        ),
+                                                        child: const Row(
+                                                          mainAxisSize: MainAxisSize.min,
+                                                          children: [
+                                                            Icon(
+                                                              Icons.check_circle,
+                                                              color: Colors.white,
+                                                              size: 14,
+                                                            ),
+                                                            SizedBox(width: 4),
+                                                            Text(
+                                                              'Completed',
+                                                              style: TextStyle(
+                                                                color: Colors.white,
+                                                                fontSize: 11,
+                                                                fontWeight: FontWeight.bold,
+                                                              ),
+                                                            ),
+                                                          ],
+                                                        ),
+                                                      ),
+                                                  ],
                                                 ),
                                                 const SizedBox(height: 4),
                                                 Text(
-                                                  'Last accessed: ${_formatDate(progress.lastAccessedAt)}',
+                                                  progress.isCompleted
+                                                      ? 'Completed: ${_formatDate(progress.completedAt ?? progress.lastAccessedAt)}'
+                                                      : 'Last accessed: ${_formatDate(progress.lastAccessedAt)}',
                                                   style: TextStyle(
                                                     fontSize: 12,
                                                     color: Colors.grey[600],
@@ -280,23 +324,32 @@ class _ProgressScreenState extends State<ProgressScreen> {
                                               ],
                                             ),
                                           ),
-                                          CircularProgressIndicator(
-                                            value: progress.progressPercentage / 100,
-                                            strokeWidth: 6,
-                                            backgroundColor: Colors.grey[200],
-                                            valueColor: AlwaysStoppedAnimation<Color>(
-                                              _getProgressColor(progress.progressPercentage),
+                                          const SizedBox(width: 12),
+                                          if (progress.isCompleted)
+                                            const Icon(
+                                              Icons.emoji_events,
+                                              color: Colors.amber,
+                                              size: 32,
+                                            )
+                                          else ...[
+                                            CircularProgressIndicator(
+                                              value: progress.progressPercentage / 100,
+                                              strokeWidth: 6,
+                                              backgroundColor: Colors.grey[200],
+                                              valueColor: AlwaysStoppedAnimation<Color>(
+                                                _getProgressColor(progress.progressPercentage),
+                                              ),
                                             ),
-                                          ),
-                                          const SizedBox(width: 8),
-                                          Text(
-                                            '${progress.progressPercentage.toStringAsFixed(0)}%',
-                                            style: TextStyle(
-                                              fontWeight: FontWeight.bold,
-                                              fontSize: 16,
-                                              color: _getProgressColor(progress.progressPercentage),
+                                            const SizedBox(width: 8),
+                                            Text(
+                                              '${progress.progressPercentage.toStringAsFixed(0)}%',
+                                              style: TextStyle(
+                                                fontWeight: FontWeight.bold,
+                                                fontSize: 16,
+                                                color: _getProgressColor(progress.progressPercentage),
+                                              ),
                                             ),
-                                          ),
+                                          ],
                                         ],
                                       ),
                                       const SizedBox(height: 16),

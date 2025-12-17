@@ -68,8 +68,9 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
           IconButton(
             icon: const Icon(Icons.notifications),
             onPressed: () {
-              Navigator.of(context).pushNamed('/notifications');
+              Navigator.of(context).pushNamed('/admin/notifications');
             },
+            tooltip: 'View Sent Notifications',
           ),
         ],
       ),

@@ -17,7 +17,9 @@ class _QuizManagementScreenState extends State<QuizManagementScreen> {
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      context.read<QuizProvider>().fetchQuizzesByLesson(widget.lessonId);
+      if (widget.lessonId.isNotEmpty) {
+        context.read<QuizProvider>().fetchQuizzesByLesson(widget.lessonId);
+      }
     });
   }
 
@@ -25,6 +27,32 @@ class _QuizManagementScreenState extends State<QuizManagementScreen> {
   Widget build(BuildContext context) {
     final quizProvider = context.watch<QuizProvider>();
     final quizzes = quizProvider.lessonQuizzes;
+
+    // Check if lessonId is empty
+    if (widget.lessonId.isEmpty) {
+      return Scaffold(
+        appBar: AppBar(
+          title: const Text('Manage Quizzes'),
+        ),
+        body: Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const Icon(Icons.error_outline, size: 64, color: Colors.red),
+              const SizedBox(height: 16),
+              const Text('Invalid lesson ID'),
+              const SizedBox(height: 8),
+              const Text('Please select a lesson first'),
+              const SizedBox(height: 16),
+              ElevatedButton(
+                onPressed: () => Navigator.of(context).pop(),
+                child: const Text('Go Back'),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
 
     return Scaffold(
       appBar: AppBar(
@@ -34,22 +62,48 @@ class _QuizManagementScreenState extends State<QuizManagementScreen> {
         onPressed: () => _showQuizDialog(context, null),
         child: const Icon(Icons.add),
       ),
-      body: quizProvider.isLoading
-          ? const Center(child: CircularProgressIndicator())
-          : quizzes.isEmpty
-              ? const Center(
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Icon(Icons.quiz, size: 64, color: Colors.grey),
-                      SizedBox(height: 16),
-                      Text('No quizzes yet'),
-                      SizedBox(height: 8),
-                      Text('Tap + to add a quiz'),
-                    ],
+      body: quizProvider.error != null
+          ? Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  const Icon(Icons.error_outline, size: 64, color: Colors.red),
+                  const SizedBox(height: 16),
+                  Text('Error: ${quizProvider.error}'),
+                  const SizedBox(height: 16),
+                  ElevatedButton(
+                    onPressed: () {
+                      context.read<QuizProvider>().fetchQuizzesByLesson(widget.lessonId);
+                    },
+                    child: const Text('Retry'),
                   ),
-                )
-              : ListView.builder(
+                ],
+              ),
+            )
+          : quizProvider.isLoading
+              ? const Center(child: CircularProgressIndicator())
+              : quizzes.isEmpty
+                  ? Center(
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          const Icon(Icons.quiz, size: 64, color: Colors.grey),
+                          const SizedBox(height: 16),
+                          const Text('No quizzes yet'),
+                          const SizedBox(height: 8),
+                          const Text('Tap + to add a quiz'),
+                          const SizedBox(height: 16),
+                          ElevatedButton.icon(
+                            onPressed: () {
+                              context.read<QuizProvider>().fetchQuizzesByLesson(widget.lessonId);
+                            },
+                            icon: const Icon(Icons.refresh),
+                            label: const Text('Refresh'),
+                          ),
+                        ],
+                      ),
+                    )
+                  : ListView.builder(
                   padding: const EdgeInsets.all(16),
                   itemCount: quizzes.length,
                   itemBuilder: (context, index) {

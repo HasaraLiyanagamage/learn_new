@@ -8,6 +8,8 @@ class ProgressModel {
   final List<String> completedQuizzes;
   final int totalLessons;
   final int totalQuizzes;
+  final bool isCompleted;
+  final DateTime? completedAt;
   final DateTime lastAccessedAt;
   final DateTime createdAt;
   final DateTime updatedAt;
@@ -20,6 +22,8 @@ class ProgressModel {
     this.completedQuizzes = const [],
     required this.totalLessons,
     required this.totalQuizzes,
+    this.isCompleted = false,
+    this.completedAt,
     required this.lastAccessedAt,
     required this.createdAt,
     required this.updatedAt,
@@ -34,6 +38,12 @@ class ProgressModel {
       completedQuizzes: List<String>.from(json['completedQuizzes'] ?? []),
       totalLessons: json['totalLessons'] ?? 0,
       totalQuizzes: json['totalQuizzes'] ?? 0,
+      isCompleted: json['isCompleted'] ?? false,
+      completedAt: json['completedAt'] != null
+          ? (json['completedAt'] is Timestamp
+              ? (json['completedAt'] as Timestamp).toDate()
+              : DateTime.parse(json['completedAt']))
+          : null,
       lastAccessedAt: json['lastAccessedAt'] is Timestamp
           ? (json['lastAccessedAt'] as Timestamp).toDate()
           : DateTime.parse(json['lastAccessedAt'] ?? DateTime.now().toIso8601String()),
@@ -55,6 +65,8 @@ class ProgressModel {
       'completedQuizzes': completedQuizzes,
       'totalLessons': totalLessons,
       'totalQuizzes': totalQuizzes,
+      'isCompleted': isCompleted,
+      if (completedAt != null) 'completedAt': Timestamp.fromDate(completedAt!),
       'lastAccessedAt': Timestamp.fromDate(lastAccessedAt),
       'createdAt': Timestamp.fromDate(createdAt),
       'updatedAt': Timestamp.fromDate(updatedAt),
@@ -67,6 +79,4 @@ class ProgressModel {
     final completed = completedLessons.length + completedQuizzes.length;
     return (completed / total) * 100;
   }
-
-  bool get isCompleted => progressPercentage >= 100;
 }

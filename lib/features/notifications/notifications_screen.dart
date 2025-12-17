@@ -17,7 +17,8 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       final userId = context.read<AuthProvider>().currentUser?.id;
       if (userId != null) {
-        context.read<NotificationProvider>().fetchNotifications(userId);
+        // Use stream for real-time updates
+        context.read<NotificationProvider>().fetchNotificationsStream(userId);
       }
     });
   }
@@ -44,20 +45,52 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
             ),
         ],
       ),
-      body: notificationProvider.isLoading
-          ? const Center(child: CircularProgressIndicator())
-          : notifications.isEmpty
-              ? const Center(
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Icon(Icons.notifications_none, size: 64, color: Colors.grey),
-                      SizedBox(height: 16),
-                      Text('No notifications'),
-                    ],
+      body: notificationProvider.error != null
+          ? Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  const Icon(Icons.error_outline, size: 64, color: Colors.red),
+                  const SizedBox(height: 16),
+                  Text('Error: ${notificationProvider.error}'),
+                  const SizedBox(height: 16),
+                  ElevatedButton(
+                    onPressed: () {
+                      final userId = authProvider.currentUser?.id;
+                      if (userId != null) {
+                        notificationProvider.fetchNotificationsStream(userId);
+                      }
+                    },
+                    child: const Text('Retry'),
                   ),
-                )
-              : ListView.builder(
+                ],
+              ),
+            )
+          : notificationProvider.isLoading && notifications.isEmpty
+              ? const Center(child: CircularProgressIndicator())
+              : notifications.isEmpty
+                  ? Center(
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          const Icon(Icons.notifications_none, size: 64, color: Colors.grey),
+                          const SizedBox(height: 16),
+                          const Text('No notifications'),
+                          const SizedBox(height: 16),
+                          ElevatedButton.icon(
+                            onPressed: () {
+                              final userId = authProvider.currentUser?.id;
+                              if (userId != null) {
+                                notificationProvider.fetchNotificationsStream(userId);
+                              }
+                            },
+                            icon: const Icon(Icons.refresh),
+                            label: const Text('Refresh'),
+                          ),
+                        ],
+                      ),
+                    )
+                  : ListView.builder(
                   itemCount: notifications.length,
                   itemBuilder: (context, index) {
                     final notification = notifications[index];
@@ -125,6 +158,12 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
         return Icons.quiz;
       case 'lesson':
         return Icons.book;
+      case 'enrollment':
+        return Icons.person_add;
+      case 'completion':
+        return Icons.celebration;
+      case 'system':
+        return Icons.info;
       default:
         return Icons.notifications;
     }
@@ -138,8 +177,14 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
         return Colors.orange;
       case 'lesson':
         return Colors.green;
-      default:
+      case 'enrollment':
+        return Colors.indigo;
+      case 'completion':
+        return Colors.amber;
+      case 'system':
         return Colors.purple;
+      default:
+        return Colors.grey;
     }
   }
 

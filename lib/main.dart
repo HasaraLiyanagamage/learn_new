@@ -45,6 +45,7 @@ import 'features/admin/add_quiz_screen.dart';
 import 'features/admin/user_management_screen.dart';
 import 'features/admin/reports_screen.dart';
 import 'features/admin/send_notification_screen.dart';
+import 'features/admin/admin_notifications_screen.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -112,6 +113,7 @@ class MyApp extends StatelessWidget {
               '/admin/users': (context) => const UserManagementScreen(),
               '/admin/reports': (context) => const ReportsScreen(),
               '/admin/send-notification': (context) => const SendNotificationScreen(),
+              '/admin/notifications': (context) => const AdminNotificationsScreen(),
             },
             onGenerateRoute: (settings) {
               // Handle dynamic routes with parameters

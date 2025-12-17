@@ -21,16 +21,36 @@ class QuizProvider with ChangeNotifier {
 
   // Fetch quizzes by lesson ID
   Future<void> fetchQuizzesByLesson(String lessonId) async {
+    print('[Quiz] Fetching quizzes for lesson: $lessonId');
     _isLoading = true;
     _error = null;
     notifyListeners();
 
     try {
-      final response = await ApiService.getQuizzesByLesson(lessonId);
-      _lessonQuizzes = response.map((json) => QuizModel.fromJson(json)).toList();
+      // Try API first
+      try {
+        final response = await ApiService.getQuizzesByLesson(lessonId);
+        _lessonQuizzes = response.map((json) => QuizModel.fromJson(json)).toList();
+        print('[Quiz] Loaded ${_lessonQuizzes.length} quizzes from API');
+      } catch (apiError) {
+        print('[Quiz] API failed, trying Firestore: $apiError');
+        // Fallback to Firestore
+        final snapshot = await FirestoreService.getCollection(
+          'quizzes',
+          queryBuilder: (query) => query.where('lessonId', isEqualTo: lessonId),
+        );
+        _lessonQuizzes = snapshot.docs
+            .map((doc) => QuizModel.fromJson({
+                  ...doc.data() as Map<String, dynamic>,
+                  'id': doc.id,
+                }))
+            .toList();
+        print('[Quiz] Loaded ${_lessonQuizzes.length} quizzes from Firestore');
+      }
       _isLoading = false;
       notifyListeners();
     } catch (e) {
+      print('[Quiz] Error fetching quizzes: $e');
       _error = e.toString();
       _isLoading = false;
       notifyListeners();
@@ -39,16 +59,36 @@ class QuizProvider with ChangeNotifier {
 
   // Get quiz by ID
   Future<void> fetchQuizById(String quizId) async {
+    print('[Quiz] Fetching quiz by ID: $quizId');
     _isLoading = true;
     _error = null;
     notifyListeners();
 
     try {
-      final response = await ApiService.getQuiz(quizId);
-      _currentQuiz = QuizModel.fromJson(response);
+      // Try API first
+      try {
+        final response = await ApiService.getQuiz(quizId);
+        _currentQuiz = QuizModel.fromJson(response);
+        print('[Quiz] Quiz loaded from API: ${_currentQuiz?.title}');
+      } catch (apiError) {
+        print('[Quiz] API failed, trying Firestore: $apiError');
+        // Fallback to Firestore
+        final doc = await FirestoreService.getDocument('quizzes', quizId);
+        if (doc.exists) {
+          _currentQuiz = QuizModel.fromJson({
+            ...doc.data() as Map<String, dynamic>,
+            'id': doc.id,
+          });
+          print('[Quiz] Quiz loaded from Firestore: ${_currentQuiz?.title}');
+        } else {
+          print('[Quiz] Quiz not found in Firestore');
+          throw Exception('Quiz not found');
+        }
+      }
       _isLoading = false;
       notifyListeners();
     } catch (e) {
+      print('[Quiz] Error fetching quiz: $e');
       _error = e.toString();
       _isLoading = false;
       notifyListeners();

@@ -294,9 +294,9 @@ class FirestoreService {
     required String body,
     required String type,
     required List<String> userIds,
+    String? relatedId,
   }) async {
     final batch = _firestore.batch();
-    final timestamp = DateTime.now();
 
     for (final userId in userIds) {
       final docRef = _firestore.collection(AppConstants.notificationsCollection).doc();
@@ -305,8 +305,9 @@ class FirestoreService {
         'title': title,
         'body': body,
         'type': type,
+        'relatedId': relatedId,
         'isRead': false,
-        'createdAt': timestamp,
+        'createdAt': FieldValue.serverTimestamp(),
       });
     }
 
