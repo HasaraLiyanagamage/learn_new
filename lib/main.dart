@@ -28,6 +28,7 @@ import 'features/auth/register_screen.dart';
 import 'features/home/home_screen.dart';
 import 'features/courses/courses_screen.dart';
 import 'features/courses/my_courses_screen.dart';
+import 'features/courses/course_detail_screen.dart';
 import 'features/notes/notes_screen.dart';
 import 'features/chatbot/chatbot_screen.dart';
 import 'features/profile/profile_screen.dart';
@@ -114,6 +115,15 @@ class MyApp extends StatelessWidget {
             },
             onGenerateRoute: (settings) {
               // Handle dynamic routes with parameters
+              if (settings.name == '/course-detail') {
+                final courseId = settings.arguments as String?;
+                if (courseId != null) {
+                  return MaterialPageRoute(
+                    builder: (context) => CourseDetailScreen(courseId: courseId),
+                  );
+                }
+              }
+              
               if (settings.name == '/admin/lessons') {
                 final courseId = settings.arguments as String?;
                 if (courseId != null) {
