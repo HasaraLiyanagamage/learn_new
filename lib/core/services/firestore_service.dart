@@ -410,4 +410,72 @@ class FirestoreService {
       return 0;
     }
   }
+
+  // Rating operations
+  static Future<void> createRating(String ratingId, Map<String, dynamic> ratingData) {
+    return createDocument('ratings', ratingId, ratingData);
+  }
+
+  static Future<void> updateRating(String ratingId, Map<String, dynamic> ratingData) {
+    return updateDocument('ratings', ratingId, ratingData);
+  }
+
+  static Future<DocumentSnapshot> getRating(String ratingId) {
+    return getDocument('ratings', ratingId);
+  }
+
+  static Future<void> deleteRating(String ratingId) {
+    return deleteDocument('ratings', ratingId);
+  }
+
+  static Stream<QuerySnapshot> getRatingsByCourseStream(String courseId) {
+    return getCollectionStream(
+      'ratings',
+      queryBuilder: (query) => query
+          .where('courseId', isEqualTo: courseId)
+          .orderBy('createdAt', descending: true),
+    );
+  }
+
+  static Future<QuerySnapshot> getRatingsByCourse(String courseId) {
+    return getCollection(
+      'ratings',
+      queryBuilder: (query) => query
+          .where('courseId', isEqualTo: courseId)
+          .orderBy('createdAt', descending: true),
+    );
+  }
+
+  static Future<QuerySnapshot> getUserRatingForCourse(String userId, String courseId) {
+    return getCollection(
+      'ratings',
+      queryBuilder: (query) => query
+          .where('userId', isEqualTo: userId)
+          .where('courseId', isEqualTo: courseId)
+          .limit(1),
+    );
+  }
+
+  // Calculate and update course average rating
+  static Future<void> updateCourseRating(String courseId) async {
+    try {
+      final ratingsSnapshot = await getRatingsByCourse(courseId);
+      
+      if (ratingsSnapshot.docs.isEmpty) {
+        await updateCourse(courseId, {'rating': 0.0});
+        return;
+      }
+
+      double totalRating = 0;
+      for (var doc in ratingsSnapshot.docs) {
+        final data = doc.data() as Map<String, dynamic>;
+        totalRating += (data['rating'] as num).toDouble();
+      }
+
+      final averageRating = totalRating / ratingsSnapshot.docs.length;
+      await updateCourse(courseId, {'rating': averageRating});
+    } catch (e) {
+      print('Error updating course rating: $e');
+    }
+  }
 }

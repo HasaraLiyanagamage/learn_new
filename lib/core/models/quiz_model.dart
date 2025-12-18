@@ -24,15 +24,32 @@ class QuizModel {
   });
 
   factory QuizModel.fromJson(Map<String, dynamic> json) {
+    // Parse questions - handle both List and Map formats
+    List<QuizQuestion> questionsList = [];
+    final questionsData = json['questions'];
+    
+    if (questionsData is List) {
+      questionsList = questionsData
+          .map((q) => QuizQuestion.fromJson(q as Map<String, dynamic>))
+          .toList();
+    } else if (questionsData is Map) {
+      // If questions is a Map with numeric string keys
+      final sortedKeys = questionsData.keys.toList()..sort((a, b) {
+        final aNum = int.tryParse(a.toString()) ?? 0;
+        final bNum = int.tryParse(b.toString()) ?? 0;
+        return aNum.compareTo(bNum);
+      });
+      questionsList = sortedKeys
+          .map((key) => QuizQuestion.fromJson(questionsData[key] as Map<String, dynamic>))
+          .toList();
+    }
+    
     return QuizModel(
       id: json['id'] ?? '',
       lessonId: json['lessonId'] ?? '',
       title: json['title'] ?? '',
       description: json['description'] ?? '',
-      questions: (json['questions'] as List<dynamic>?)
-              ?.map((q) => QuizQuestion.fromJson(q))
-              .toList() ??
-          [],
+      questions: questionsList,
       duration: _parseInt(json['duration']) ?? 0,
       passingScore: _parseInt(json['passingScore']) ?? 0,
       createdAt: json['createdAt'] is Timestamp
@@ -83,10 +100,28 @@ class QuizQuestion {
   });
 
   factory QuizQuestion.fromJson(Map<String, dynamic> json) {
+    // Handle options - can be either List or Map with string indices
+    List<String> optionsList = [];
+    final optionsData = json['options'];
+    
+    if (optionsData is List) {
+      // Normal array
+      optionsList = List<String>.from(optionsData);
+    } else if (optionsData is Map) {
+      // Map with string indices like {"0": "test", "1": "test2"}
+      // Sort keys numerically to maintain order
+      final sortedKeys = optionsData.keys.toList()..sort((a, b) {
+        final aNum = int.tryParse(a.toString()) ?? 0;
+        final bNum = int.tryParse(b.toString()) ?? 0;
+        return aNum.compareTo(bNum);
+      });
+      optionsList = sortedKeys.map((key) => optionsData[key].toString()).toList();
+    }
+    
     return QuizQuestion(
-      id: json['id'] ?? '',
-      question: json['question'] ?? '',
-      options: List<String>.from(json['options'] ?? []),
+      id: json['id']?.toString() ?? '',
+      question: json['question']?.toString() ?? '',
+      options: optionsList,
       correctAnswer: _parseIntValue(json['correctAnswer']) ?? 0,
       points: _parseIntValue(json['points']) ?? 1,
     );

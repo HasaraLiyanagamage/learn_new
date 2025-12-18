@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart';
 import '../core/models/chat_message_model.dart';
 import '../core/services/chatbot_service.dart';
+import '../core/utils/connectivity_helper.dart';
 import 'package:uuid/uuid.dart';
 
 class ChatbotProvider with ChangeNotifier {
@@ -17,6 +18,14 @@ class ChatbotProvider with ChangeNotifier {
     if (message.trim().isEmpty) return;
 
     try {
+      // Check internet connection first
+      final isConnected = await ConnectivityHelper.isConnected();
+      if (!isConnected) {
+        _errorMessage = '❌ No internet connection. The AI chatbot requires an active internet connection to work.';
+        notifyListeners();
+        return;
+      }
+
       // Add user message
       final userMessage = ChatMessageModel(
         id: const Uuid().v4(),
@@ -29,6 +38,7 @@ class ChatbotProvider with ChangeNotifier {
 
       _messages.add(userMessage);
       _isLoading = true;
+      _errorMessage = null;
       notifyListeners();
 
       // Get AI response
@@ -49,7 +59,7 @@ class ChatbotProvider with ChangeNotifier {
       _errorMessage = null;
       notifyListeners();
     } catch (e) {
-      _errorMessage = 'Failed to get response: $e';
+      _errorMessage = e.toString().replaceAll('Exception: ', '');
       _isLoading = false;
       notifyListeners();
     }

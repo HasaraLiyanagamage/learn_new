@@ -13,7 +13,7 @@ class ChatbotService {
 
   static Future<String> sendMessage(String message) async {
     if (_model == null) {
-      throw Exception('Chatbot not initialized');
+      throw Exception('Chatbot not initialized. Please restart the app.');
     }
 
     try {
@@ -31,9 +31,29 @@ Please provide a helpful, clear, and concise response.
       final content = [Content.text(prompt)];
       final response = await _model!.generateContent(content);
 
-      return response.text ?? 'Sorry, I could not generate a response.';
+      if (response.text == null || response.text!.isEmpty) {
+        throw Exception('Empty response from AI. Please try again.');
+      }
+
+      return response.text!;
+    } on GenerativeAIException catch (e) {
+      // Handle specific Gemini API errors
+      final errorMsg = e.message.toLowerCase();
+      if (errorMsg.contains('api key') || errorMsg.contains('api_key')) {
+        throw Exception('Invalid API key. Please check your Gemini API configuration.');
+      } else if (errorMsg.contains('quota') || errorMsg.contains('limit')) {
+        throw Exception('API quota exceeded. Please try again later or check your API limits.');
+      } else if (errorMsg.contains('blocked') || errorMsg.contains('safety')) {
+        throw Exception('Request blocked by safety filters. Try rephrasing your question.');
+      } else if (errorMsg.contains('network') || errorMsg.contains('connection')) {
+        throw Exception('Network error. Please check your internet connection.');
+      }
+      throw Exception('AI Error: ${e.message}');
     } catch (e) {
-      throw Exception('Failed to get response from chatbot: $e');
+      if (e.toString().contains('SocketException') || e.toString().contains('NetworkException')) {
+        throw Exception('No internet connection. Please check your network.');
+      }
+      throw Exception('Failed to get response: $e');
     }
   }
 

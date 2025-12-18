@@ -7,6 +7,8 @@ import '../../core/services/firestore_service.dart';
 import '../../core/services/notification_helper.dart';
 import '../../core/models/course_model.dart';
 import '../../core/models/lesson_model.dart';
+import '../../core/models/rating_model.dart';
+import '../../widgets/course_rating_dialog.dart';
 import '../quiz/quiz_screen.dart';
 
 class CourseDetailScreen extends StatefulWidget {
@@ -28,6 +30,7 @@ class _CourseDetailScreenState extends State<CourseDetailScreen> {
   List<String> _completedQuizzes = [];
   int _totalLessons = 0;
   int _totalQuizzes = 0;
+  RatingModel? _userRating;
 
   @override
   void initState() {
@@ -78,6 +81,15 @@ class _CourseDetailScreenState extends State<CourseDetailScreen> {
               .where('courseId', isEqualTo: widget.courseId),
         );
         _isFavorite = favoritesSnapshot.docs.isNotEmpty;
+
+        // Check if user has rated this course
+        final ratingSnapshot = await FirestoreService.getUserRatingForCourse(userId, widget.courseId);
+        if (ratingSnapshot.docs.isNotEmpty) {
+          _userRating = RatingModel.fromJson({
+            ...ratingSnapshot.docs.first.data() as Map<String, dynamic>,
+            'id': ratingSnapshot.docs.first.id,
+          });
+        }
       }
     } catch (e) {
       debugPrint('Error loading course: $e');
@@ -388,7 +400,7 @@ class _CourseDetailScreenState extends State<CourseDetailScreen> {
       );
 
       if (mounted) {
-        showDialog(
+        final shouldRate = await showDialog<bool>(
           context: context,
           builder: (context) => AlertDialog(
             title: const Row(
@@ -415,24 +427,41 @@ class _CourseDetailScreenState extends State<CourseDetailScreen> {
                       ),
                 ),
                 const SizedBox(height: 16),
-                Row(
+                const Row(
                   mainAxisAlignment: MainAxisAlignment.center,
-                  children: const [
+                  children: [
                     Icon(Icons.celebration, color: Colors.amber, size: 20),
                     SizedBox(width: 8),
                     Text('Keep up the great work!'),
                   ],
                 ),
+                const SizedBox(height: 16),
+                const Divider(),
+                const SizedBox(height: 8),
+                Text(
+                  'Would you like to rate this course?',
+                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                        fontWeight: FontWeight.w500,
+                      ),
+                ),
               ],
             ),
             actions: [
               TextButton(
-                onPressed: () => Navigator.of(context).pop(),
-                child: const Text('OK'),
+                onPressed: () => Navigator.of(context).pop(false),
+                child: const Text('Maybe Later'),
+              ),
+              ElevatedButton(
+                onPressed: () => Navigator.of(context).pop(true),
+                child: const Text('Rate Course'),
               ),
             ],
           ),
         );
+
+        if (shouldRate == true) {
+          _showRatingDialog();
+        }
       }
 
       // Refresh student statistics and progress
@@ -444,6 +473,22 @@ class _CourseDetailScreenState extends State<CourseDetailScreen> {
           SnackBar(content: Text('Error: $e')),
         );
       }
+    }
+  }
+
+  Future<void> _showRatingDialog() async {
+    final result = await showDialog(
+      context: context,
+      builder: (context) => CourseRatingDialog(
+        courseId: widget.courseId,
+        courseTitle: _course!.title,
+        existingRating: _userRating,
+      ),
+    );
+
+    if (result == true) {
+      // Reload course data to get updated rating
+      _loadCourseData();
     }
   }
 
@@ -597,32 +642,56 @@ class _CourseDetailScreenState extends State<CourseDetailScreen> {
                 ),
               ),
 
-            // Course Completed Badge
+            // Course Completed Badge with Rating Button
             if (_isCourseCompleted)
               Padding(
                 padding: const EdgeInsets.all(16),
-                child: Container(
-                  width: double.infinity,
-                  padding: const EdgeInsets.all(16),
-                  decoration: BoxDecoration(
-                    color: Colors.green.withOpacity(0.1),
-                    border: Border.all(color: Colors.green, width: 2),
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      const Icon(Icons.verified, color: Colors.green, size: 28),
-                      const SizedBox(width: 12),
-                      Text(
-                        'Course Completed!',
-                        style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                              color: Colors.green,
-                              fontWeight: FontWeight.bold,
-                            ),
+                child: Column(
+                  children: [
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        color: Colors.green.withOpacity(0.1),
+                        border: Border.all(color: Colors.green, width: 2),
+                        borderRadius: BorderRadius.circular(12),
                       ),
-                    ],
-                  ),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          const Icon(Icons.verified, color: Colors.green, size: 28),
+                          const SizedBox(width: 12),
+                          Text(
+                            'Course Completed!',
+                            style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                                  color: Colors.green,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    SizedBox(
+                      width: double.infinity,
+                      child: OutlinedButton.icon(
+                        onPressed: _showRatingDialog,
+                        icon: Icon(
+                          _userRating != null ? Icons.edit : Icons.star_rate,
+                          color: Colors.amber,
+                        ),
+                        label: Text(
+                          _userRating != null 
+                              ? 'Update Your Rating (${_userRating!.rating.toStringAsFixed(1)} ★)' 
+                              : 'Rate This Course',
+                        ),
+                        style: OutlinedButton.styleFrom(
+                          padding: const EdgeInsets.all(16),
+                          side: BorderSide(color: Colors.amber.shade700),
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
               ),
 
@@ -819,10 +888,205 @@ class _CourseDetailScreenState extends State<CourseDetailScreen> {
             ],
 
             const SizedBox(height: 24),
+
+            // Ratings Section
+            Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(
+                        'Course Ratings',
+                        style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                              fontWeight: FontWeight.bold,
+                            ),
+                      ),
+                      if (_course != null && _course!.rating > 0)
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                          decoration: BoxDecoration(
+                            color: Colors.amber.withOpacity(0.2),
+                            borderRadius: BorderRadius.circular(20),
+                          ),
+                          child: Row(
+                            children: [
+                              const Icon(Icons.star, color: Colors.amber, size: 20),
+                              const SizedBox(width: 4),
+                              Text(
+                                _course!.rating.toStringAsFixed(1),
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 16,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                    ],
+                  ),
+                  const SizedBox(height: 16),
+                ],
+              ),
+            ),
+            StreamBuilder(
+              stream: FirestoreService.getRatingsByCourseStream(widget.courseId),
+              builder: (context, snapshot) {
+                if (snapshot.connectionState == ConnectionState.waiting) {
+                  return const Center(
+                    child: Padding(
+                      padding: EdgeInsets.all(16),
+                      child: CircularProgressIndicator(),
+                    ),
+                  );
+                }
+
+                if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
+                  return Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                    child: Card(
+                      child: Padding(
+                        padding: const EdgeInsets.all(24),
+                        child: Column(
+                          children: [
+                            Icon(
+                              Icons.star_border,
+                              size: 48,
+                              color: Colors.grey[400],
+                            ),
+                            const SizedBox(height: 12),
+                            Text(
+                              'No ratings yet',
+                              style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                                    color: Colors.grey[600],
+                                  ),
+                            ),
+                            const SizedBox(height: 8),
+                            Text(
+                              'Be the first to rate this course!',
+                              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                                    color: Colors.grey[500],
+                                  ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  );
+                }
+
+                final ratings = snapshot.data!.docs
+                    .map((doc) => RatingModel.fromJson({
+                          ...doc.data() as Map<String, dynamic>,
+                          'id': doc.id,
+                        }))
+                    .toList();
+
+                return ListView.builder(
+                  shrinkWrap: true,
+                  physics: const NeverScrollableScrollPhysics(),
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  itemCount: ratings.length,
+                  itemBuilder: (context, index) {
+                    final rating = ratings[index];
+                    return Card(
+                      margin: const EdgeInsets.only(bottom: 12),
+                      child: Padding(
+                        padding: const EdgeInsets.all(16),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                Row(
+                                  children: [
+                                    CircleAvatar(
+                                      backgroundColor: Theme.of(context).colorScheme.primary,
+                                      child: Text(
+                                        rating.userName[0].toUpperCase(),
+                                        style: const TextStyle(color: Colors.white),
+                                      ),
+                                    ),
+                                    const SizedBox(width: 12),
+                                    Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        Text(
+                                          rating.userName,
+                                          style: const TextStyle(
+                                            fontWeight: FontWeight.bold,
+                                          ),
+                                        ),
+                                        Row(
+                                          children: List.generate(5, (starIndex) {
+                                            return Icon(
+                                              starIndex < rating.rating
+                                                  ? Icons.star
+                                                  : Icons.star_border,
+                                              size: 16,
+                                              color: Colors.amber,
+                                            );
+                                          }),
+                                        ),
+                                      ],
+                                    ),
+                                  ],
+                                ),
+                                Text(
+                                  _formatDate(rating.createdAt),
+                                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                                        color: Colors.grey[600],
+                                      ),
+                                ),
+                              ],
+                            ),
+                            if (rating.review != null && rating.review!.isNotEmpty) ...[
+                              const SizedBox(height: 12),
+                              Text(
+                                rating.review!,
+                                style: Theme.of(context).textTheme.bodyMedium,
+                              ),
+                            ],
+                          ],
+                        ),
+                      ),
+                    );
+                  },
+                );
+              },
+            ),
+
+            const SizedBox(height: 24),
           ],
         ),
       ),
     );
+  }
+
+  String _formatDate(DateTime date) {
+    final now = DateTime.now();
+    final difference = now.difference(date);
+
+    if (difference.inDays == 0) {
+      if (difference.inHours == 0) {
+        if (difference.inMinutes == 0) {
+          return 'Just now';
+        }
+        return '${difference.inMinutes}m ago';
+      }
+      return '${difference.inHours}h ago';
+    } else if (difference.inDays < 7) {
+      return '${difference.inDays}d ago';
+    } else if (difference.inDays < 30) {
+      return '${(difference.inDays / 7).floor()}w ago';
+    } else if (difference.inDays < 365) {
+      return '${(difference.inDays / 30).floor()}mo ago';
+    } else {
+      return '${(difference.inDays / 365).floor()}y ago';
+    }
   }
 }
 

@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:google_sign_in/google_sign_in.dart';
 import '../core/models/user_model.dart';
 import '../core/services/api_service.dart';
 import '../core/services/firestore_service.dart';
@@ -8,6 +9,7 @@ import '../core/constants/app_constants.dart';
 
 class AuthProvider with ChangeNotifier {
   final FirebaseAuth _auth = FirebaseAuth.instance;
+  final GoogleSignIn _googleSignIn = GoogleSignIn();
   UserModel? _currentUser;
   bool _isLoading = false;
   String? _errorMessage;
@@ -318,9 +320,151 @@ class AuthProvider with ChangeNotifier {
     }
   }
 
+  Future<bool> signInWithGoogle() async {
+    _isLoading = true;
+    _errorMessage = null;
+    notifyListeners();
+
+    UserCredential? userCredential;
+
+    try {
+      // Trigger the Google Sign-In flow
+      final GoogleSignInAccount? googleUser = await _googleSignIn.signIn();
+      
+      if (googleUser == null) {
+        // User canceled the sign-in
+        _isLoading = false;
+        notifyListeners();
+        return false;
+      }
+
+      // Obtain the auth details from the request
+      final GoogleSignInAuthentication googleAuth = await googleUser.authentication;
+
+      // Create a new credential
+      final credential = GoogleAuthProvider.credential(
+        accessToken: googleAuth.accessToken,
+        idToken: googleAuth.idToken,
+      );
+
+      // Sign in to Firebase with the Google credential
+      userCredential = await _auth.signInWithCredential(credential);
+
+      if (userCredential.user != null) {
+        try {
+          // Get user data from Firestore
+          final doc = await FirestoreService.getUser(userCredential.user!.uid);
+          
+          if (doc.exists) {
+            _currentUser = UserModel.fromJson(doc.data() as Map<String, dynamic>);
+          } else {
+            // If user document doesn't exist, create it with Google account info
+            final now = DateTime.now();
+            final userData = UserModel(
+              id: userCredential.user!.uid,
+              email: userCredential.user!.email ?? '',
+              name: userCredential.user!.displayName ?? 'User',
+              role: 'student',
+              photoUrl: userCredential.user!.photoURL,
+              createdAt: now,
+              updatedAt: now,
+            );
+            
+            await FirestoreService.createUser(
+              userCredential.user!.uid,
+              userData.toJson(),
+            );
+            
+            _currentUser = userData;
+          }
+          
+          // Save login state
+          final prefs = await SharedPreferences.getInstance();
+          await prefs.setBool(AppConstants.keyIsLoggedIn, true);
+          await prefs.setString(AppConstants.keyUserId, _currentUser!.id);
+          await prefs.setString(AppConstants.keyUserRole, _currentUser!.role);
+          
+          // Set auth token for API calls
+          try {
+            final token = await userCredential.user!.getIdToken();
+            if (token != null) {
+              ApiService.setAuthToken(token);
+            }
+          } catch (tokenError) {
+            print('Warning: Could not get ID token: $tokenError');
+          }
+        } catch (postAuthError) {
+          print('Warning: Error after Google authentication: $postAuthError');
+          // Create a basic user object if there's an error
+          if (_currentUser == null) {
+            final now = DateTime.now();
+            _currentUser = UserModel(
+              id: userCredential.user!.uid,
+              email: userCredential.user!.email ?? '',
+              name: userCredential.user!.displayName ?? 'User',
+              role: 'student',
+              photoUrl: userCredential.user!.photoURL,
+              createdAt: now,
+              updatedAt: now,
+            );
+            
+            // Save login state
+            final prefs = await SharedPreferences.getInstance();
+            await prefs.setBool(AppConstants.keyIsLoggedIn, true);
+            await prefs.setString(AppConstants.keyUserId, _currentUser!.id);
+            await prefs.setString(AppConstants.keyUserRole, _currentUser!.role);
+          }
+        }
+        
+        _isLoading = false;
+        notifyListeners();
+        return true;
+      }
+
+      _errorMessage = 'Google Sign-In failed';
+      _isLoading = false;
+      notifyListeners();
+      return false;
+    } catch (e) {
+      // If authentication succeeded but there was an error after, still return success
+      if (userCredential?.user != null) {
+        print('Google Sign-In succeeded despite error: $e');
+        if (_currentUser == null) {
+          final now = DateTime.now();
+          _currentUser = UserModel(
+            id: userCredential!.user!.uid,
+            email: userCredential.user!.email ?? '',
+            name: userCredential.user!.displayName ?? 'User',
+            role: 'student',
+            photoUrl: userCredential.user!.photoURL,
+            createdAt: now,
+            updatedAt: now,
+          );
+          
+          try {
+            final prefs = await SharedPreferences.getInstance();
+            await prefs.setBool(AppConstants.keyIsLoggedIn, true);
+            await prefs.setString(AppConstants.keyUserId, _currentUser!.id);
+            await prefs.setString(AppConstants.keyUserRole, _currentUser!.role);
+          } catch (_) {}
+        }
+        _isLoading = false;
+        notifyListeners();
+        return true;
+      }
+      
+      print('Google Sign-In error: $e');
+      _errorMessage = 'An error occurred during Google Sign-In: ${e.toString()}';
+      _isLoading = false;
+      notifyListeners();
+      return false;
+    }
+  }
+
   Future<void> logout() async {
     try {
       await _auth.signOut();
+      await _googleSignIn.signOut();
       ApiService.clearAuthToken();
       
       final prefs = await SharedPreferences.getInstance();

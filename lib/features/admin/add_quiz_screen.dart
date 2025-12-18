@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:uuid/uuid.dart';
 import '../../core/services/firestore_service.dart';
 import '../../providers/course_provider.dart';
 import '../../core/models/lesson_model.dart';
@@ -21,7 +22,7 @@ class _AddQuizScreenState extends State<AddQuizScreen> {
   String? _selectedCourseId;
   String? _selectedLessonId;
   List<LessonModel> _lessons = [];
-  List<Map<String, dynamic>> _questions = [];
+  final List<Map<String, dynamic>> _questions = [];
   bool _isLoading = false;
   bool _loadingLessons = false;
 
@@ -123,6 +124,17 @@ class _AddQuizScreenState extends State<AddQuizScreen> {
     });
 
     try {
+      // Format questions properly to ensure options are saved as arrays
+      final formattedQuestions = _questions.map((q) {
+        return {
+          'id': const Uuid().v4(),
+          'question': q['question'].toString().trim(),
+          'options': List<String>.from(q['options']), // Ensure it's a proper List
+          'correctAnswer': q['correctAnswer'] as int,
+          'points': 1,
+        };
+      }).toList();
+      
       final quizData = {
         'lessonId': _selectedLessonId!,
         'courseId': _selectedCourseId!,
@@ -130,7 +142,7 @@ class _AddQuizScreenState extends State<AddQuizScreen> {
         'description': _descriptionController.text.trim(),
         'passingScore': int.parse(_passingScoreController.text.trim()),
         'duration': int.parse(_durationController.text.trim()),
-        'questions': _questions,
+        'questions': formattedQuestions,
         'createdAt': DateTime.now(),
         'updatedAt': DateTime.now(),
       };
@@ -192,7 +204,7 @@ class _AddQuizScreenState extends State<AddQuizScreen> {
                   ),
                   const SizedBox(height: 8),
                   DropdownButtonFormField<String>(
-                    value: _selectedCourseId,
+                    initialValue: _selectedCourseId,
                     decoration: const InputDecoration(
                       border: OutlineInputBorder(),
                       hintText: 'Choose a course',
@@ -230,7 +242,7 @@ class _AddQuizScreenState extends State<AddQuizScreen> {
                   ),
                   const SizedBox(height: 8),
                   DropdownButtonFormField<String>(
-                    value: _selectedLessonId,
+                    initialValue: _selectedLessonId,
                     decoration: const InputDecoration(
                       border: OutlineInputBorder(),
                       hintText: 'Choose a lesson',

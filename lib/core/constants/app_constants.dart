@@ -36,6 +36,6 @@ class AppConstants {
   static const Duration cacheDuration = Duration(hours: 24);
   
   // Gemini AI Configuration
-  static const String geminiApiKey = 'AIzaSyBWPHBDJLkvMIpypS-acGlNnZ163qkgZS8'; 
-  static const String geminiModel = 'gemini-pro';
+  static const String geminiApiKey = 'AIzaSyBePU27D2l3u-eue8WKIeu_YuX29A2TVCc'; 
+  static const String geminiModel = 'gemini-2.0-flash-lite'; 
 }

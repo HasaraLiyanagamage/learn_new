@@ -76,6 +76,37 @@ class _ChatbotScreenState extends State<ChatbotScreen> {
       ),
       body: Column(
         children: [
+          // Error message display
+          Consumer<ChatbotProvider>(
+            builder: (context, chatbotProvider, child) {
+              if (chatbotProvider.errorMessage != null) {
+                return Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(12.0),
+                  color: Colors.red.shade100,
+                  child: Row(
+                    children: [
+                      Icon(Icons.error_outline, color: Colors.red.shade900),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          chatbotProvider.errorMessage!,
+                          style: TextStyle(color: Colors.red.shade900),
+                        ),
+                      ),
+                      IconButton(
+                        icon: const Icon(Icons.close),
+                        onPressed: () {
+                          chatbotProvider.clearError();
+                        },
+                      ),
+                    ],
+                  ),
+                );
+              }
+              return const SizedBox.shrink();
+            },
+          ),
           // Quick actions
           Container(
             padding: const EdgeInsets.all(8.0),
