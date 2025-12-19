@@ -7,7 +7,7 @@ plugins {
 }
 
 android {
-    namespace = "com.smartlearning.assistant"
+    namespace = "com.example.learn"
     compileSdk = 36
     ndkVersion = flutter.ndkVersion
 
@@ -22,7 +22,7 @@ android {
     }
 
     defaultConfig {
-        applicationId = "com.smartlearning.assistant"
+        applicationId = "com.example.learn"
         minSdk = flutter.minSdkVersion
         targetSdk = 36
         versionCode = 1

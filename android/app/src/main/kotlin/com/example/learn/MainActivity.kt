@@ -1,4 +1,4 @@
-package com.smartlearning.assistant
+package com.example.learn
 
 import io.flutter.embedding.android.FlutterActivity
 
