@@ -21,7 +21,7 @@ class ChatbotProvider with ChangeNotifier {
       // Check internet connection first
       final isConnected = await ConnectivityHelper.isConnected();
       if (!isConnected) {
-        _errorMessage = '❌ No internet connection. The AI chatbot requires an active internet connection to work.';
+        _errorMessage = ' No internet connection. The AI chatbot requires an active internet connection to work.';
         notifyListeners();
         return;
       }
